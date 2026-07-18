@@ -1,3 +1,7 @@
+## 1.0.7
+
+* Fix SPM compilation by adding `FlutterFramework` dependency for Flutter 3.44+ compatibility.
+
 ## 1.0.6
 
 * Fix `Module 'heif_converter' not found` error on iOS by correcting `s.source_files` path in podspec.

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -113,5 +114,27 @@ void main() {
       expect(File(pngPath!).lengthSync(), greaterThan(0));
       expect(File(jpgPath!).lengthSync(), greaterThan(0));
     });
+  });
+
+  group('HeifConverter — orientation', () {
+    // These photos store landscape pixels plus an `irot` rotation (how cameras
+    // save portrait shots), so the converted image must come out portrait.
+    const rotatedSamples = {
+      'sample2.heic': [3000, 4000],
+      'sample3.heic': [3024, 4032],
+    };
+    for (final sample in rotatedSamples.keys) {
+      testWidgets('convert $sample to JPEG applies rotation', (tester) async {
+        final inputPath = await _assetToFile(sample);
+
+        final outputPath =
+            await HeifConverter.convert(inputPath, format: 'jpg');
+
+        final codec = await ui.instantiateImageCodec(
+            File(outputPath!).readAsBytesSync());
+        final image = (await codec.getNextFrame()).image;
+        expect([image.width, image.height], rotatedSamples[sample]);
+      });
+    }
   });
 }

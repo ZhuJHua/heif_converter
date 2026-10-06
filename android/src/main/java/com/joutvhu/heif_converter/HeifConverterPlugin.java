@@ -3,6 +3,8 @@ package com.joutvhu.heif_converter;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.ImageDecoder;
+import android.os.Build;
 
 import androidx.annotation.NonNull;
 
@@ -64,7 +66,7 @@ public class HeifConverterPlugin implements FlutterPlugin, MethodCallHandler {
   }
 
   private String convert(String path, String output) throws IOException {
-    Bitmap bitmap = BitmapFactory.decodeFile(path);
+    Bitmap bitmap = decode(path);
     if (bitmap == null) {
       throw new IOException("Failed to decode image: " + path);
     }
@@ -83,6 +85,18 @@ public class HeifConverterPlugin implements FlutterPlugin, MethodCallHandler {
     } finally {
       bitmap.recycle();
     }
+  }
+
+  private Bitmap decode(String path) throws IOException {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      // Unlike BitmapFactory, ImageDecoder applies the image orientation (HEIF irot, EXIF).
+      // Bitmap.compress writes no EXIF, so the pixels themselves must be upright.
+      ImageDecoder.Source source = ImageDecoder.createSource(new File(path));
+      // Hardware bitmaps can't be compressed.
+      return ImageDecoder.decodeBitmap(source, (decoder, info, src) ->
+              decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE));
+    }
+    return BitmapFactory.decodeFile(path);
   }
 
   private Bitmap.CompressFormat getFormat(String path) {

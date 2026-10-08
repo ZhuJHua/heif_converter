@@ -124,17 +124,20 @@ void main() {
       'sample3.heic': [3024, 4032],
     };
     for (final sample in rotatedSamples.keys) {
-      testWidgets('convert $sample to JPEG applies rotation', (tester) async {
-        final inputPath = await _assetToFile(sample);
+      for (final format in ['png', 'jpg']) {
+        testWidgets('convert $sample to $format applies rotation',
+            (tester) async {
+          final inputPath = await _assetToFile(sample);
 
-        final outputPath =
-            await HeifConverter.convert(inputPath, format: 'jpg');
+          final outputPath =
+              await HeifConverter.convert(inputPath, format: format);
 
-        final codec = await ui.instantiateImageCodec(
-            File(outputPath!).readAsBytesSync());
-        final image = (await codec.getNextFrame()).image;
-        expect([image.width, image.height], rotatedSamples[sample]);
-      });
+          final codec = await ui.instantiateImageCodec(
+              File(outputPath!).readAsBytesSync());
+          final image = (await codec.getNextFrame()).image;
+          expect([image.width, image.height], rotatedSamples[sample]);
+        });
+      }
     }
   });
 }

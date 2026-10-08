@@ -1,4 +1,5 @@
 import Flutter
+import ImageIO
 import UIKit
 
 public class HeifConverterPlugin: NSObject, FlutterPlugin {
@@ -44,16 +45,38 @@ public class HeifConverterPlugin: NSObject, FlutterPlugin {
   }
 
   func convert(path: String, output: String) -> String? {
-    guard let image = UIImage(contentsOfFile: path) else {
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else {
       return nil
     }
-    let imageData: Data?
-    if output.hasSuffix(".jpg") || output.hasSuffix(".jpeg") {
-      imageData = image.jpegData(compressionQuality: 1.0)
+    let index = CGImageSourceGetPrimaryImageIndex(source)
+    let sourceProperties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any] ?? [:]
+    var orientation = sourceProperties[kCGImagePropertyOrientation] as? Int ?? 1
+    let isJpeg = output.hasSuffix(".jpg") || output.hasSuffix(".jpeg")
+    let image: CGImage?
+    if isJpeg || orientation == 1 {
+      // JPEG keeps the stored pixels and records the orientation in EXIF.
+      image = CGImageSourceCreateImageAtIndex(source, index, nil)
     } else {
-      imageData = image.pngData()
+      // Most PNG decoders (including Flutter's) ignore the orientation in PNG metadata, so rotate
+      // the pixels instead. With no max pixel size set, the "thumbnail" is the full-size image.
+      image = CGImageSourceCreateThumbnailAtIndex(source, index, [
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+      ] as CFDictionary)
+      orientation = 1
     }
-    guard let data = imageData else {
+    var properties: [CFString: Any] = [kCGImagePropertyOrientation: orientation]
+    if isJpeg {
+      properties[kCGImageDestinationLossyCompressionQuality] = 1.0
+    }
+    let data = NSMutableData()
+    guard let cgImage = image,
+          let destination = CGImageDestinationCreateWithData(
+            data, (isJpeg ? "public.jpeg" : "public.png") as CFString, 1, nil) else {
+      return nil
+    }
+    CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+    guard CGImageDestinationFinalize(destination) else {
       return nil
     }
     let outputURL = URL(fileURLWithPath: output)
@@ -61,7 +84,7 @@ public class HeifConverterPlugin: NSObject, FlutterPlugin {
     if !FileManager.default.fileExists(atPath: parentURL.path) {
       try? FileManager.default.createDirectory(at: parentURL, withIntermediateDirectories: true)
     }
-    FileManager.default.createFile(atPath: output, contents: data, attributes: nil)
+    FileManager.default.createFile(atPath: output, contents: data as Data, attributes: nil)
     return output
   }
 }
